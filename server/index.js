@@ -60,13 +60,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🏁 ChessOCR server running at http://localhost:${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 OpenAI API:  ${process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here' ? '✅ configured' : '❌ MISSING - set OPENAI_API_KEY in .env'}`);
-  console.log(`   Model: ${process.env.OPENAI_MODEL || 'gpt-4o'}`);
-  console.log(`🗄️  Supabase:    ${process.env.SUPABASE_URL ? '✅ configured' : '❌ MISSING'}`);
-});
-
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🏁 ChessOCR server running at http://localhost:${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🤖 OpenAI API:  ${process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here' ? '✅ configured' : '❌ MISSING - set OPENAI_API_KEY in .env'}`);
+    console.log(`   Model: ${process.env.OPENAI_MODEL || 'gpt-4o'}`);
+    console.log(`🗄️  Supabase:    ${process.env.SUPABASE_URL ? '✅ configured' : '❌ MISSING'}`);
+  });
+}
 
 module.exports = app;
