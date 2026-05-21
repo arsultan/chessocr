@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChessOCR — Оцифровка шахматных бланков</title>
+  <meta name="description" content="Загрузите фото шахматного бланка и получите PGN. Автоматическое распознавание ходов через AI.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Chess.js via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  
+  <!-- Chessboard.js -->
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar" id="main-nav">
+    <div class="nav-container">
+      <a href="/" class="nav-logo">
+        <span class="logo-icon">♚</span>
+        <span class="logo-text">Chess<span class="logo-accent">OCR</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="/" class="nav-link active" id="nav-upload">Загрузить</a>
+        <a href="#" class="nav-link" id="nav-import">Импорт PGN</a>
+        <a href="/database.html" class="nav-link" id="nav-database">База партий</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- SCREEN 1: Upload -->
+  <main class="screen" id="screen-upload">
+    <div class="container">
+      <div class="screen-header">
+        <h1 class="screen-title">Загрузка бланка</h1>
+        <p class="screen-subtitle">Сфотографируйте или загрузите скан шахматного бланка</p>
+      </div>
+
+      <div class="upload-zone" id="upload-zone-main">
+        <input type="file" id="file-page1" accept="image/*" class="file-input" multiple>
+        <div class="upload-zone-content">
+          <div class="upload-icon">♟</div>
+          <p class="upload-title">Перетащите фото сюда или нажмите для выбора</p>
+          <p class="upload-sub">JPEG, PNG, WebP · до 20 МБ · 1 или 2 страницы</p>
+        </div>
+        <div class="upload-corner upload-corner--tl"></div>
+        <div class="upload-corner upload-corner--tr"></div>
+        <div class="upload-corner upload-corner--bl"></div>
+        <div class="upload-corner upload-corner--br"></div>
+      </div>
+
+      <div class="pages-grid">
+        <div class="page-card" id="page1-card">
+          <div class="page-label">
+            <span class="badge badge--required">Страница 1</span>
+            <span class="page-label-hint">Ходы 1–30</span>
+          </div>
+          <div class="page-preview" id="page1-preview">
+            <div class="page-empty">
+              <span class="page-empty-icon">📄</span>
+              <span>Не выбрана</span>
+            </div>
+          </div>
+          <button class="btn btn--secondary btn--sm" onclick="document.getElementById('file-page1-single').click()">
+            Выбрать файл
+          </button>
+          <input type="file" id="file-page1-single" accept="image/*" class="file-input" data-page="1">
+        </div>
+
+        <div class="page-card" id="page2-card">
+          <div class="page-label">
+            <span class="badge">Страница 2</span>
+            <span class="page-label-hint">Ходы 31–60 (если есть)</span>
+          </div>
+          <div class="page-preview" id="page2-preview">
+            <div class="page-empty">
+              <span class="page-empty-icon">📄</span>
+              <span>Необязательная</span>
+            </div>
+          </div>
+          <button class="btn btn--ghost btn--sm" onclick="document.getElementById('file-page2-single').click()">
+            Выбрать файл
+          </button>
+          <input type="file" id="file-page2-single" accept="image/*" class="file-input" data-page="2">
+        </div>
+      </div>
+
+      <!-- Camera capture for mobile -->
+      <div class="camera-row">
+        <button class="btn btn--secondary" id="btn-camera" onclick="document.getElementById('file-camera').click()">
+          📷 Открыть камеру
+        </button>
+        <input type="file" id="file-camera" accept="image/*" capture="environment" class="file-input" data-page="1">
+      </div>
+
+      <div class="process-row">
+        <button class="btn btn--primary btn--lg" id="btn-process" disabled>
+          <span class="btn-text">Распознать бланк</span>
+          <span class="btn-spinner hidden">⟳</span>
+        </button>
+        <p class="process-note" id="process-note">Добавьте хотя бы одну страницу</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- SCREEN: Import Games -->
+  <main class="screen hidden" id="screen-import">
+    <div class="container">
+      <div class="screen-header">
+        <h1 class="screen-title">Импорт партий</h1>
+        <p class="screen-subtitle">Импортируйте партии с chess.com, lichess.org или из файла PGN</p>
+      </div>
+
+      <div class="card import-card" style="padding: 2rem;">
+        <div class="form-group">
+          <label class="form-label" for="import-fide-id">FIDE ID (опционально, для фильтрации)</label>
+          <input type="text" id="import-fide-id" class="form-input" placeholder="Например: 447001283" pattern="[0-9]+">
+        </div>
+        
+        <div class="form-group" style="margin-top: 1.5rem;">
+          <label class="form-label" for="import-source">Источник</label>
+          <select id="import-source" class="form-input form-select">
+            <option value="lichess">Lichess Broadcast</option>
+            <option value="chess.com">Chess.com (Файл/Текст)</option>
+            <option value="manual">Другое (Файл/Текст)</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="import-url-group" style="margin-top: 1.5rem;">
+          <label class="form-label" for="import-url">URL трансляции Lichess</label>
+          <input type="url" id="import-url" class="form-input" placeholder="https://lichess.org/broadcast/.../.../ID">
+        </div>
+
+        <div class="form-group hidden" id="import-file-group" style="margin-top: 1.5rem;">
+          <label class="form-label" for="import-file">Загрузить файл PGN</label>
+          <input type="file" id="import-file" accept=".pgn" class="form-input file-input" style="display: block; padding: 1rem; border: 1px dashed var(--gold-dim);">
+          <div style="margin: 1rem 0; text-align: center; color: var(--text-dim);">или</div>
+          <label class="form-label" for="import-pgn-text">Вставить текст PGN</label>
+          <textarea id="import-pgn-text" class="form-input" rows="6" placeholder="[Event &quot;...&quot;]..."></textarea>
+        </div>
+
+        <div class="process-row" style="margin-top: 2rem;">
+          <button class="btn btn--primary btn--lg" id="btn-import-submit">
+            <span class="btn-text">Импортировать</span>
+            <span class="btn-spinner hidden">⟳</span>
+          </button>
+          <p class="process-note" id="import-note" style="color: var(--text-dim); margin-top: 1rem;"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+
+  <!-- SCREEN 2: Processing -->
+  <div class="screen hidden" id="screen-processing">
+    <div class="container processing-container">
+      <div class="processing-animation">
+        <div class="chess-pieces-orbit">
+          <span class="orbit-piece">♜</span>
+          <span class="orbit-piece">♞</span>
+          <span class="orbit-piece">♝</span>
+          <span class="orbit-piece">♛</span>
+        </div>
+      </div>
+      <h2 class="processing-title">Распознавание ходов...</h2>
+      <p class="processing-sub" id="processing-sub">Анализируем изображение с помощью Gemini AI</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Review & Save -->
+  <div class="screen hidden" id="screen-review">
+    <div class="container-wide">
+      <!-- Review Header -->
+      <div class="review-header">
+        <div>
+          <h1 class="screen-title">Результат распознавания</h1>
+          <p class="screen-subtitle" id="review-stats"></p>
+        </div>
+        <div class="review-header-actions">
+          <button class="btn btn--ghost" id="btn-back">← Новый бланк</button>
+        </div>
+      </div>
+
+      <!-- Players & Meta Section -->
+      <section class="meta-section">
+        <div class="players-grid">
+          <!-- White Player -->
+          <div class="player-card player-card--white">
+            <div class="player-header">
+              <span class="player-color-dot dot--white">♔</span>
+              <span class="player-label">БЕЛЫЕ</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label required-label" for="white-fide-id">FIDE ID <span class="required-star">*</span></label>
+              <div class="input-with-badge">
+                <input type="text" id="white-fide-id" class="form-input" placeholder="12345678" pattern="[0-9]+" maxlength="10">
+                <span class="fide-badge hidden" id="white-fide-badge">✓</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="white-name">Имя игрока (авто)</label>
+              <input type="text" id="white-name" class="form-input" placeholder="Определяется по FIDE ID..." readonly style="background-color: rgba(255,255,255,0.05); color: var(--gold-dim);">
+            </div>
+          </div>
+
+          <!-- Black Player -->
+          <div class="player-card player-card--black">
+            <div class="player-header">
+              <span class="player-color-dot dot--black">♚</span>
+              <span class="player-label">ЧЁРНЫЕ</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label required-label" for="black-fide-id">FIDE ID <span class="required-star">*</span></label>
+              <div class="input-with-badge">
+                <input type="text" id="black-fide-id" class="form-input" placeholder="12345678" pattern="[0-9]+" maxlength="10">
+                <span class="fide-badge hidden" id="black-fide-badge">✓</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="black-name">Имя игрока (авто)</label>
+              <input type="text" id="black-name" class="form-input" placeholder="Определяется по FIDE ID..." readonly style="background-color: rgba(255,255,255,0.05); color: var(--gold-dim);">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tournament Meta -->
+        <div class="meta-grid">
+          <div class="form-group">
+            <label class="form-label" for="meta-tournament">Турнир</label>
+            <input type="text" id="meta-tournament" class="form-input" placeholder="Название турнира">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-round">Тур</label>
+            <input type="text" id="meta-round" class="form-input" placeholder="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-board">Стол</label>
+            <input type="text" id="meta-board" class="form-input" placeholder="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-date">Дата</label>
+            <input type="date" id="meta-date" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-location">Локация</label>
+            <input type="text" id="meta-location" class="form-input" placeholder="Алматы">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="meta-result">Результат</label>
+            <select id="meta-result" class="form-input form-select">
+              <option value="*">Не указан</option>
+              <option value="1-0">1-0 (Белые)</option>
+              <option value="0-1">0-1 (Чёрные)</option>
+              <option value="1/2-1/2">½-½ (Ничья)</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main Content: Moves + Board -->
+      <div class="review-main">
+        <!-- Left: Scanned image + Move List -->
+        <div class="review-left">
+          <!-- Moves Table -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Ходы партии</h3>
+              <div class="moves-stats" id="moves-stats"></div>
+            </div>
+            <div class="moves-table-container">
+              <table class="moves-table">
+                <thead>
+                  <tr>
+                    <th class="col-num">#</th>
+                    <th class="col-move">Белые</th>
+                    <th class="col-move">Чёрные</th>
+                  </tr>
+                </thead>
+                <tbody id="moves-tbody">
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Image preview -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Скан бланка</h3>
+              <div class="img-zoom-controls">
+                <button class="btn btn--ghost btn--xs" id="btn-zoom-out">−</button>
+                <button class="btn btn--ghost btn--xs" id="btn-zoom-reset">↺</button>
+                <button class="btn btn--ghost btn--xs" id="btn-zoom-in">+</button>
+              </div>
+            </div>
+            <div class="scan-preview-container" id="scan-preview-container">
+              <img id="scan-preview-img" src="" alt="Скан бланка" class="scan-preview-img">
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Chess Board + PGN -->
+        <div class="review-right">
+          <!-- Chess Board -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Доска</h3>
+              <div class="board-nav">
+                <button class="btn btn--ghost btn--xs" id="btn-board-start" title="Начало">⏮</button>
+                <button class="btn btn--ghost btn--xs" id="btn-board-prev" title="Назад">◀</button>
+                <span class="board-move-indicator" id="board-move-indicator">Нач.</span>
+                <button class="btn btn--ghost btn--xs" id="btn-board-next" title="Вперёд">▶</button>
+                <button class="btn btn--ghost btn--xs" id="btn-board-end" title="Конец">⏭</button>
+              </div>
+            </div>
+            <div id="chess-board" class="chess-board-wrapper"></div>
+            <div class="board-status" id="board-status"></div>
+          </div>
+
+          <!-- Lichess Analysis -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Анализ Stockfish</h3>
+              <button class="btn btn--secondary btn--sm" id="btn-lichess-analysis">
+                Открыть в Lichess ↗
+              </button>
+            </div>
+            <div class="engine-eval" id="engine-eval">
+              <div class="eval-bar-container">
+                <div class="eval-bar" id="eval-bar">
+                  <div class="eval-fill" id="eval-fill"></div>
+                </div>
+                <span class="eval-score" id="eval-score">—</span>
+              </div>
+              <p class="eval-note">Нажмите "Открыть в Lichess" для полного анализа партии</p>
+            </div>
+          </div>
+
+          <!-- PGN Output -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">PGN</h3>
+              <div class="pgn-actions">
+                <button class="btn btn--ghost btn--sm" id="btn-copy-pgn">Копировать</button>
+                <button class="btn btn--ghost btn--sm" id="btn-download-pgn">Скачать</button>
+              </div>
+            </div>
+            <textarea class="pgn-textarea" id="pgn-output" readonly placeholder="PGN появится здесь после обработки..."></textarea>
+          </div>
+
+          <!-- Validation Status -->
+          <div class="validation-status" id="validation-status"></div>
+
+          <!-- Save to Database -->
+          <div class="save-section">
+            <div class="save-requirements" id="save-requirements">
+              <p class="save-req-text">Для сохранения необходимо:</p>
+              <ul class="save-req-list" id="save-req-list"></ul>
+            </div>
+            <button class="btn btn--primary btn--lg btn--full" id="btn-save" disabled>
+              💾 Сохранить в базу данных
+            </button>
+            <div class="save-feedback hidden" id="save-feedback"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/chess-parser.js?v=2"></script>
+  <script src="/js/pgn-exporter.js?v=2"></script>
+  <script src="/js/board.js?v=2"></script>
+  <script src="/js/app.js?v=2"></script>
+</body>
+</html>

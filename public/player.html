@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Профиль игрока — ChessOCR</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Player Profile specific styles */
+    .profile-header {
+      background: linear-gradient(135deg, var(--bg-card) 0%, rgba(240, 176, 63, 0.05) 100%);
+      border: 1px solid var(--gold-dim);
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      margin-bottom: 32px;
+      display: flex;
+      gap: 32px;
+      align-items: center;
+      box-shadow: var(--shadow-gold);
+    }
+    .profile-avatar {
+      width: 120px;
+      height: 120px;
+      background: var(--bg-modal);
+      border: 2px solid var(--gold);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 56px;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+    .profile-info {
+      flex: 1;
+    }
+    .profile-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .profile-name {
+      font-size: 32px;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    .profile-fide-id {
+      font-family: var(--font-mono);
+      color: var(--gold);
+      font-size: 16px;
+      margin-bottom: 24px;
+      display: block;
+    }
+    .profile-stats {
+      display: flex;
+      gap: 32px;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+    .stat-value {
+      font-size: 20px;
+      color: var(--text-primary);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+    .stat-value.highlight {
+      color: var(--success);
+    }
+    .loading-profile {
+      text-align: center;
+      padding: 60px;
+      color: var(--text-muted);
+    }
+    .hover-gold:hover { color: var(--gold) !important; text-decoration: underline; }
+    .game-row { cursor: pointer; }
+    .game-row:hover { border-color: var(--gold) !important; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 999; display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-xl); max-width: 700px; width: 90%;
+      max-height: 80vh; overflow-y: auto;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--bg-card); z-index: 1;
+    }
+    .modal-title { font-size: 18px; }
+    .modal-body { padding: 24px; }
+    .pgn-modal { background: var(--bg-input); padding: 16px; border-radius: var(--radius); font-family: monospace; font-size: 13px; white-space: pre-wrap; word-break: break-all; color: var(--text-primary); max-height: 300px; overflow-y: auto; }
+    .meta-details { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .meta-detail { display: flex; flex-direction: column; gap: 4px; }
+    .meta-detail .label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .meta-detail .value { font-size: 14px; color: var(--text-primary); font-family: var(--font-mono); }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar" id="main-nav">
+    <div class="nav-container">
+      <a href="/" class="nav-logo">
+        <span class="logo-icon">♚</span>
+        <span class="logo-text">Chess<span class="logo-accent">OCR</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Загрузить</a>
+        <a href="/database.html" class="nav-link">База партий</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="screen">
+    <div class="container-wide">
+      
+      <!-- Go back -->
+      <a href="/database.html" class="btn btn--ghost" style="margin-bottom: 24px; display: inline-flex;">← К базе партий</a>
+
+      <!-- Profile Section -->
+      <div id="profile-container" class="loading-profile">
+        <div class="btn-spinner" style="font-size: 32px; color: var(--gold); margin-bottom: 16px;">⟳</div>
+        <p>Загрузка профиля игрока...</p>
+      </div>
+
+      <!-- Games Section -->
+      <h2 class="screen-title" style="font-size: 24px; margin-bottom: 24px;">Сыгранные партии</h2>
+      
+      <div id="games-container" class="games-grid">
+        <!-- Games will be injected here -->
+      </div>
+      <div id="games-loading" class="db-empty hidden">
+        <div class="btn-spinner" style="font-size: 32px; color: var(--gold); margin-bottom: 16px;">⟳</div>
+        <p>Загрузка партий...</p>
+      </div>
+      <div id="games-empty" class="db-empty hidden">
+        <div class="db-empty-icon">📭</div>
+        <p>В базе пока нет оцифрованных партий для этого игрока.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Game Detail Modal -->
+  <div class="modal-overlay hidden" id="game-modal-overlay">
+    <div class="modal" id="game-modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">Партия</h2>
+        <button class="btn btn--ghost btn--sm" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/js/player.js?v=2"></script>
+</body>
+</html>
