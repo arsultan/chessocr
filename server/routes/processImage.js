@@ -2,7 +2,11 @@ const OpenAI = require('openai');
 const express = require('express');
 const { Chess } = require('chess.js');
 const { distance } = require('fastest-levenshtein');
+const { createClient } = require('@supabase/supabase-js');
 const router = express.Router();
+
+// Initialize Supabase client
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 const CHESS_OCR_PROMPT = `CONTEXT: You are an expert chess scoresheet OCR system. We are digitizing handwritten chess scoresheets (бланки шахматных партий) from real tournaments. 
 Be aware that these often feature messy children's handwriting (детский почерк), slanted text, and inconsistent character shapes. The main table strictly contains chess moves.
 
@@ -212,9 +216,36 @@ router.post('/', async (req, res) => {
         }, 0) / moves.length
       : 0;
 
+    // --- Upload Scan to Supabase Storage ---
+    let scan_url = null;
+    try {
+      if (req.files && req.files.page1 && req.files.page1[0]) {
+        const file = req.files.page1[0];
+        const fileName = `scan_${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('scans')
+          .upload(fileName, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false
+          });
+          
+        if (!uploadError) {
+          const { data: pubData } = supabase.storage.from('scans').getPublicUrl(fileName);
+          scan_url = pubData.publicUrl;
+        } else {
+          console.error('[OCR] Failed to upload scan to Supabase:', uploadError.message);
+        }
+      }
+    } catch (uploadEx) {
+      console.error('[OCR] Exception uploading scan:', uploadEx);
+    }
+    // ----------------------------------------
+
     res.json({
       success: true,
       data: parsed,
+      scan_url: scan_url,
       stats: {
         total_moves: moves.length,
         avg_confidence: Math.round(avgConfidence * 100) / 100,

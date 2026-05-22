@@ -189,7 +189,7 @@ async function openGame(id) {
       <div style="margin-bottom: 12px; display: flex; gap: 8px;">
         <a href="/index.html?edit=${g.id}" class="btn btn--primary btn--sm">Редактировать</a>
         <button class="btn btn--secondary btn--sm" onclick="navigator.clipboard.writeText(document.getElementById('pgn-modal-text').textContent)">Копировать PGN</button>
-        <a href="https://lichess.org/paste?pgn=${encodeURIComponent(g.pgn)}" target="_blank" class="btn btn--ghost btn--sm">Открыть в Lichess ↗</a>
+              <button class="btn btn--ghost btn--sm" onclick="PGNExporter.importToLichess(document.getElementById('pgn-modal-text').textContent)">Открыть в Lichess ↗</button>
       </div>
       <div class="pgn-modal" id="pgn-modal-text">${escapeHtml(g.pgn)}</div>
       ${g.has_errors ? '<p style="color: var(--warning); font-size: 13px; margin-top: 12px;">⚠ Партия содержит нераспознанные или нелегальные ходы</p>' : ''}

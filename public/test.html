@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://unpkg.com/chessground@9.2.1/assets/chessground.base.css">
+  <link rel="stylesheet" href="https://unpkg.com/chessground@9.2.1/assets/chessground.brown.css">
+  <link rel="stylesheet" href="https://unpkg.com/chessground@9.2.1/assets/chessground.cburnett.css">
+  <style>
+    body { background: #333; color: white; padding: 20px; }
+    #board { width: 400px; height: 400px; }
+  </style>
+</head>
+<body>
+  <div id="board"></div>
+  <script type="module">
+    import { Chessground } from 'https://unpkg.com/chessground@9.2.1/dist/chessground.min.js';
+    window.cg = Chessground(document.getElementById('board'), {
+      fen: 'start'
+    });
+    console.log("Chessground loaded successfully!");
+  </script>
+</body>
+</html>

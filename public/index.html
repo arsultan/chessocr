@@ -13,10 +13,11 @@
   <!-- Chess.js via CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
   
-  <!-- Chessboard.js -->
-  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+  <!-- Chessground CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/chessground@9.2.1/assets/chessground.base.css">
+  <link rel="stylesheet" href="https://unpkg.com/chessground@9.2.1/assets/chessground.brown.css">
+  <link rel="stylesheet" href="https://unpkg.com/chessground@9.2.1/assets/chessground.cburnett.css">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
   <link rel="stylesheet" href="/css/style.css">
 </head>
@@ -204,7 +205,7 @@
             <div class="form-group">
               <label class="form-label required-label" for="white-fide-id">FIDE ID <span class="required-star">*</span></label>
               <div class="input-with-badge">
-                <input type="text" id="white-fide-id" class="form-input" placeholder="12345678" pattern="[0-9]+" maxlength="10">
+                <input type="text" id="white-fide-id" class="form-input" placeholder="12345678" pattern="[0-9]+" maxlength="10" list="fide-suggestions" autocomplete="off">
                 <span class="fide-badge hidden" id="white-fide-badge">✓</span>
               </div>
             </div>
@@ -223,9 +224,10 @@
             <div class="form-group">
               <label class="form-label required-label" for="black-fide-id">FIDE ID <span class="required-star">*</span></label>
               <div class="input-with-badge">
-                <input type="text" id="black-fide-id" class="form-input" placeholder="12345678" pattern="[0-9]+" maxlength="10">
+                <input type="text" id="black-fide-id" class="form-input" placeholder="12345678" pattern="[0-9]+" maxlength="10" list="fide-suggestions" autocomplete="off">
                 <span class="fide-badge hidden" id="black-fide-badge">✓</span>
               </div>
+              <datalist id="fide-suggestions"></datalist>
             </div>
             <div class="form-group">
               <label class="form-label" for="black-name">Имя игрока (авто)</label>
@@ -276,7 +278,12 @@
           <div class="card">
             <div class="card-header">
               <h3 class="card-title">Ходы партии</h3>
-              <div class="moves-stats" id="moves-stats"></div>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="btn-undo" class="btn btn--secondary btn--sm" style="display: none;" title="Отменить последнее изменение (Ctrl+Z)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"></path></svg>
+                </button>
+                <div class="moves-stats" id="moves-stats"></div>
+              </div>
             </div>
             <div class="moves-table-container">
               <table class="moves-table">
@@ -323,7 +330,9 @@
                 <button class="btn btn--ghost btn--xs" id="btn-board-end" title="Конец">⏭</button>
               </div>
             </div>
-            <div id="chess-board" class="chess-board-wrapper"></div>
+            <div class="chess-board-wrapper">
+              <div id="chess-board"></div>
+            </div>
             <div class="board-status" id="board-status"></div>
           </div>
 
@@ -377,9 +386,8 @@
     </div>
   </div>
 
-  <script src="/js/chess-parser.js?v=2"></script>
-  <script src="/js/pgn-exporter.js?v=2"></script>
-  <script src="/js/board.js?v=2"></script>
-  <script src="/js/app.js?v=2"></script>
+  <script src="/js/chess-parser.js?v=3"></script>
+  <script src="/js/pgn-exporter.js?v=3"></script>
+  <script type="module" src="/js/app.js?v=3"></script>
 </body>
 </html>

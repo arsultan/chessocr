@@ -1,31 +1,30 @@
-/**
- * board.js
- * Chess board controller using chessboard.js + position history navigation
- */
+import { Chessground } from 'https://unpkg.com/chessground@9.2.1/dist/chessground.min.js';
 
-const BoardController = (() => {
-  let board = null;
+export const BoardController = (() => {
+  let cg = null;
   let fenHistory = [];
   let currentIndex = 0;
   let processedMoves = [];
+  let editMoveCallback = null;
+  let editChess = null;
 
   function init(containerId) {
-    const cfg = {
-      position: 'start',
-      showNotation: true,
-      pieceTheme: 'https://lichess1.org/assets/piece/cburnett/{piece}.svg',
-      draggable: false,
-    };
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    // CSS handles the size and aspect ratio now
 
-    // Resize board to fit container
-    const containerEl = document.getElementById(containerId);
-    if (!containerEl) return;
-    const width = Math.min(containerEl.parentElement.offsetWidth - 32, 440);
-
-    board = Chessboard(containerId, { ...cfg, pieceTheme: cfg.pieceTheme });
-    $(window).resize(() => {
-      if (board) board.resize();
+    cg = Chessground(container, {
+      fen: 'start',
+      viewOnly: true,
+      animation: { enabled: true, duration: 200 }
     });
+
+    window.addEventListener('resize', resize);
+  }
+
+  function resize() {
+    // Chessground handles resize automatically, CSS aspect-ratio maintains square shape
   }
 
   function loadGame(moves) {
@@ -36,25 +35,27 @@ const BoardController = (() => {
   }
 
   function updateBoardToIndex(idx) {
-    if (!board || fenHistory.length === 0) return;
+    if (!cg || fenHistory.length === 0) return;
     currentIndex = Math.max(0, Math.min(idx, fenHistory.length - 1));
-    board.position(fenHistory[currentIndex]);
+    
+    cg.set({
+      fen: fenHistory[currentIndex],
+      viewOnly: true,
+      lastMove: null // Clear last move highlight when navigating history
+    });
 
-    // Update move indicator
     const indicator = document.getElementById('board-move-indicator');
     const status = document.getElementById('board-status');
     if (indicator) {
-      if (currentIndex === 0) {
-        indicator.textContent = 'Нач.';
-      } else {
+      if (currentIndex === 0) indicator.textContent = 'Нач.';
+      else {
         const moveNum = Math.ceil(currentIndex / 2);
         const color = currentIndex % 2 === 1 ? '♔' : '♚';
         indicator.textContent = `${moveNum}. ${color}`;
       }
     }
 
-    // Highlight active move in table
-    document.querySelectorAll('.moves-table tbody tr').forEach((row, i) => {
+    document.querySelectorAll('.moves-table tbody tr').forEach((row) => {
       row.classList.remove('active-move');
     });
     if (currentIndex > 0) {
@@ -67,7 +68,6 @@ const BoardController = (() => {
     }
 
     if (status) {
-      // Show chess.js game state at current position
       try {
         const chess = new Chess(fenHistory[currentIndex]);
         if (chess.in_checkmate()) status.textContent = '♟ Мат!';
@@ -79,15 +79,61 @@ const BoardController = (() => {
     }
   }
 
+  function calculateDests(chess) {
+    const dests = new Map();
+    chess.SQUARES.forEach(s => {
+      const ms = chess.moves({ square: s, verbose: true });
+      if (ms.length) dests.set(s, ms.map(m => m.to));
+    });
+    return dests;
+  }
+
+  function enableEditMode(fen, callback) {
+    editMoveCallback = callback;
+    editChess = new Chess(fen);
+    
+    const turnColor = editChess.turn() === 'w' ? 'white' : 'black';
+    const dests = calculateDests(editChess);
+
+    cg.set({
+      fen: fen,
+      viewOnly: false,
+      turnColor: turnColor,
+      movable: {
+        color: turnColor,
+        free: false,
+        dests: dests,
+        showDests: true,
+        events: {
+          after: (orig, dest) => {
+            const move = editChess.move({ from: orig, to: dest, promotion: 'q' });
+            if (move && editMoveCallback) {
+              editMoveCallback(move.san);
+            }
+            editChess.undo();
+          }
+        }
+      }
+    });
+  }
+
+  function disableEditMode() {
+    editMoveCallback = null;
+    editChess = null;
+    if (fenHistory[currentIndex]) {
+      cg.set({
+        fen: fenHistory[currentIndex],
+        viewOnly: true
+      });
+    }
+  }
+
   function goToStart() { updateBoardToIndex(0); }
   function goToEnd() { updateBoardToIndex(fenHistory.length - 1); }
   function goForward() { updateBoardToIndex(currentIndex + 1); }
   function goBack() { updateBoardToIndex(currentIndex - 1); }
   function goToMove(halfMoveIndex) { updateBoardToIndex(halfMoveIndex); }
+  // resize is defined above
 
-  function resize() {
-    if (board) board.resize();
-  }
-
-  return { init, loadGame, goToStart, goToEnd, goForward, goBack, goToMove, resize };
+  return { init, loadGame, goToStart, goToEnd, goForward, goBack, goToMove, resize, enableEditMode, disableEditMode };
 })();

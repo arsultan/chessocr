@@ -2,9 +2,11 @@
  * app.js — Main ChessOCR Application
  */
 
+import { BoardController } from './board.js';
+
 const App = (() => {
   // State
-  const state = {
+  let state = {
     page1File: null,
     page2File: null,
     ocrResult: null,
@@ -12,6 +14,8 @@ const App = (() => {
     pgn: '',
     zoomLevel: 1,
     editGameId: null,
+    scan_url: null,
+    historyStack: []
   };
 
   // ─── Init ──────────────────────────────────────────────────────────
@@ -144,6 +148,7 @@ const App = (() => {
 
       const result = await response.json();
       state.ocrResult = result.data;
+      state.scan_url = result.scan_url || null;
 
       updateProcessingStatus('Валидация ходов...');
       await new Promise(r => setTimeout(r, 400));
@@ -151,12 +156,16 @@ const App = (() => {
       // Parse and validate moves
       const validationResult = ChessParser.validateMoves(state.ocrResult.moves || []);
       state.processedMoves = validationResult.moves;
+      state.historyStack = [];
+      const btnUndo = document.getElementById('btn-undo');
+      if (btnUndo) btnUndo.style.display = 'none';
 
       // Generate PGN
       const meta = buildMetaFromOCR(state.ocrResult);
       state.pgn = PGNExporter.buildPGN(meta, state.processedMoves, validationResult.pgn);
 
       showScreen('review');
+      BoardController.resize(); // Ensure board size is calculated
       populateReviewScreen(state.ocrResult, state.processedMoves, result.stats, state.pgn);
 
     } catch (err) {
@@ -181,15 +190,88 @@ const App = (() => {
       if (!res.ok) throw new Error('Не удалось загрузить партию');
       const game = await res.json();
 
-      // Ensure we have raw moves
-      if (!game.raw_moves) {
-        throw new Error('Данная партия сохранена в старом формате (без raw_moves), редактирование недоступно.');
+      // Handle both new and old formats
+      let rawMoves = game.raw_moves;
+      if (typeof rawMoves === 'string') {
+        try { rawMoves = JSON.parse(rawMoves); } catch(e) {}
+      }
+      
+      if (!rawMoves) {
+        let gameMoves = game.moves;
+        if (typeof gameMoves === 'string') {
+          try { gameMoves = JSON.parse(gameMoves); } catch(e) {}
+        }
+        
+        if (gameMoves && Array.isArray(gameMoves) && gameMoves.length > 0) {
+          rawMoves = gameMoves;
+        } else if (game.pgn) {
+          try {
+            const chess = new Chess();
+            const loaded = chess.load_pgn(game.pgn);
+            rawMoves = [];
+            
+            if (loaded) {
+              const hist = chess.history();
+              for (let i = 0; i < hist.length; i += 2) {
+                rawMoves.push({
+                  number: Math.floor(i / 2) + 1,
+                  white: hist[i],
+                  black: hist[i + 1] || null
+                });
+              }
+            } else {
+              // Manual fuzzy parse for PGNs with illegal moves or OCR errors
+              const pgnText = game.pgn.replace(/\[.*?\]/g, '').trim(); // Remove tags
+              const tokens = pgnText.split(/\s+/).filter(t => t);
+              let currentMove = null;
+              
+              for (const t of tokens) {
+                if (t === '1-0' || t === '0-1' || t === '1/2-1/2' || t === '*') continue;
+                
+                if (/^\d+\./.test(t)) {
+                  const num = parseInt(t);
+                  currentMove = { number: num, white: null, black: null };
+                  rawMoves.push(currentMove);
+                  
+                  const rest = t.replace(/^\d+\./, '');
+                  if (rest) currentMove.white = rest;
+                } else if (currentMove) {
+                  if (!currentMove.white) {
+                    currentMove.white = t;
+                  } else if (!currentMove.black) {
+                    currentMove.black = t;
+                  }
+                }
+              }
+              
+              // Clean up {?:move} format from manual PGN builder
+              rawMoves.forEach(m => {
+                if (m.white && m.white.startsWith('{?:')) m.white = m.white.replace('{?:', '').replace('}', '');
+                if (m.black && m.black.startsWith('{?:')) m.black = m.black.replace('{?:', '').replace('}', '');
+              });
+            }
+          } catch (e) {
+            console.error('Failed to parse PGN for fallback', e);
+          }
+        }
+        
+        if (!rawMoves || rawMoves.length === 0) {
+          throw new Error('Данная партия не содержит списка ходов.');
+        }
       }
 
-      state.processedMoves = game.raw_moves;
+      // Re-validate to ensure fenBefore and other internal states are generated
+      const validationResult = ChessParser.validateMoves(rawMoves);
+      state.processedMoves = validationResult.moves;
+      state.historyStack = [];
+      const btnUndo = document.getElementById('btn-undo');
+      if (btnUndo) btnUndo.style.display = 'none';
+      
       state.pgn = game.pgn;
+      state.scan_url = game.scan_url || null;
       
       const ocrFake = {
+        moves: rawMoves,
         white_name: game.white_name,
         black_name: game.black_name,
         tournament: game.tournament,
@@ -200,19 +282,26 @@ const App = (() => {
         result: game.result
       };
 
+      state.ocrResult = ocrFake; // Required for editing to work
+
       // Set fide IDs directly
       document.getElementById('white-fide-id').value = game.white_fide_id || '';
       document.getElementById('black-fide-id').value = game.black_fide_id || '';
 
       showScreen('review');
+      BoardController.resize(); // Ensure board size is calculated now that it's visible
       populateReviewScreen(ocrFake, state.processedMoves, null, state.pgn);
       
       // Setup image fallback if scan_url exists but we aren't loading an image
       const img = document.getElementById('scan-preview-img');
+      const scanCard = img ? img.closest('.card') : null;
       if (img && game.scan_url) {
         img.src = game.scan_url;
+        img.style.display = '';
+        if (scanCard) scanCard.style.display = '';
       } else if (img) {
         img.style.display = 'none'; // hide if no image
+        if (scanCard) scanCard.style.display = 'none';
       }
 
     } catch (err) {
@@ -247,11 +336,17 @@ const App = (() => {
     }
 
     // Scan preview
+    const img = document.getElementById('scan-preview-img');
+    const scanCard = img ? img.closest('.card') : null;
+    
     if (state.page1File) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const img = document.getElementById('scan-preview-img');
-        if (img) img.src = e.target.result;
+        if (img) {
+          img.src = e.target.result;
+          img.style.display = '';
+          if (scanCard) scanCard.style.display = '';
+        }
       };
       reader.readAsDataURL(state.page1File);
     }
@@ -272,7 +367,7 @@ const App = (() => {
 
     // Moves stats
     const movesStatsEl = document.getElementById('moves-stats');
-    const errorMoves = moves.filter(m => !m.whiteValid || !m.blackValid).length;
+    const errorMoves = moves.filter(m => (!m.whiteValid && m.white && m.white !== '?') || (!m.blackValid && m.black && m.black !== '?')).length;
     if (movesStatsEl) {
       if (errorMoves > 0) {
         movesStatsEl.innerHTML = `<span class="badge badge--error">⚠ ${errorMoves} ошибок</span>`;
@@ -284,9 +379,20 @@ const App = (() => {
     // Lichess button
     const lichessBtn = document.getElementById('btn-lichess-analysis');
     if (lichessBtn) {
-      lichessBtn.onclick = () => {
-        const url = PGNExporter.getLichessUrl(pgn);
-        window.open(url, '_blank');
+      lichessBtn.onclick = async () => {
+        try {
+          lichessBtn.textContent = 'Экспорт...';
+          lichessBtn.disabled = true;
+          
+          await PGNExporter.importToLichess(pgn);
+          // window.open is no longer needed, the form submission opens a new tab automatically
+        } catch (err) {
+          showToast('Ошибка экспорта в Lichess', 'error');
+          console.error(err);
+        } finally {
+          lichessBtn.textContent = 'Открыть в Lichess ↗';
+          lichessBtn.disabled = false;
+        }
       };
     }
 
@@ -413,9 +519,26 @@ const App = (() => {
       datalist.appendChild(option);
     });
 
+    let isSaved = false;
     const save = () => {
+      if (isSaved) return;
+      isSaved = true;
+      
+      // Restore old value if user leaves it completely empty
+      if (input.value.trim() === '' && input.dataset.oldValue) {
+        input.value = input.dataset.oldValue;
+      }
+      
       const newVal = input.value.trim();
+      BoardController.disableEditMode();
       if (newVal !== rawValue && newVal !== '') {
+        // Save current state for Undo
+        state.historyStack.push(JSON.stringify(state.ocrResult.moves));
+        if (state.historyStack.length > 50) state.historyStack.shift();
+        
+        const btnUndo = document.getElementById('btn-undo');
+        if (btnUndo) btnUndo.style.display = 'inline-flex';
+
         // Update raw OCR result
         if (!state.ocrResult.moves[idx]) state.ocrResult.moves[idx] = { number: idx + 1 };
         
@@ -437,16 +560,37 @@ const App = (() => {
       }
     };
 
-    input.onblur = save;
-    input.onkeydown = (e) => {
+    input.addEventListener('focus', () => {
+      if (!input.dataset.oldValue) {
+        input.dataset.oldValue = input.value;
+      }
+      input.value = '';
+    });
+
+    input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') save();
-      if (e.key === 'Escape') renderMovesTable(state.processedMoves);
-    };
+      else if (e.key === 'Escape') {
+        input.value = input.dataset.oldValue || rawValue;
+        save();
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      // Give a tiny delay so datalist click can register before saving
+      setTimeout(save, 150);
+    });
 
     cell.innerHTML = '';
     cell.appendChild(input);
     cell.appendChild(datalist);
     input.focus();
+
+    if (fenBefore) {
+      BoardController.enableEditMode(fenBefore, (sanMove) => {
+        input.value = sanMove;
+        save();
+      });
+    }
   }
 
   function renderValidationStatus(moves) {
@@ -487,6 +631,48 @@ const App = (() => {
     document.getElementById('btn-board-next')?.addEventListener('click', () => BoardController.goForward());
     document.getElementById('btn-board-end')?.addEventListener('click', () => BoardController.goToEnd());
 
+    // Setup move list zoom
+    document.getElementById('btn-moves-zoom-in')?.addEventListener('click', () => {
+      document.querySelector('.moves-table').style.fontSize = '1.1rem';
+    });
+    document.getElementById('btn-moves-zoom-out')?.addEventListener('click', () => {
+      document.querySelector('.moves-table').style.fontSize = '0.9rem';
+    });
+    document.getElementById('btn-moves-zoom-reset')?.addEventListener('click', () => {
+      document.querySelector('.moves-table').style.fontSize = '1rem';
+    });
+
+    // Global undo (Ctrl+Z)
+    const performUndo = () => {
+      if (state.historyStack.length > 0) {
+        const prevStr = state.historyStack.pop();
+        state.ocrResult.moves = JSON.parse(prevStr);
+        
+        // Re-validate and update UI
+        const validationResult = ChessParser.validateMoves(state.ocrResult.moves);
+        state.processedMoves = validationResult.moves;
+        const meta = buildMetaFromOCR(state.ocrResult);
+        state.pgn = PGNExporter.buildPGN(meta, state.processedMoves, validationResult.pgn);
+        
+        populateReviewScreen(state.ocrResult, state.processedMoves, null, state.pgn);
+        showToast('Действие отменено', 'info');
+        
+        const btnUndo = document.getElementById('btn-undo');
+        if (btnUndo) btnUndo.style.display = state.historyStack.length > 0 ? 'inline-flex' : 'none';
+      }
+    };
+
+    document.getElementById('btn-undo')?.addEventListener('click', performUndo);
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+        // Don't intercept if user is typing in an input/textarea
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        performUndo();
+      }
+    });
+
     // Zoom controls
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
       state.zoomLevel = Math.min(3, state.zoomLevel + 0.25);
@@ -520,6 +706,32 @@ const App = (() => {
     // FIDE ID inputs - update save button state on change
     ['white-fide-id', 'black-fide-id', 'white-name', 'black-name'].forEach(id => {
       document.getElementById(id)?.addEventListener('input', updateSaveRequirements);
+    });
+
+    // FIDE ID Autocomplete from our database
+    let debounceTimer;
+    const fetchSuggestions = async (q) => {
+      if (!q || q.length < 2) return;
+      try {
+        const res = await fetch(`/api/games/players/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const players = await res.json();
+          const datalist = document.getElementById('fide-suggestions');
+          if (datalist) {
+            datalist.innerHTML = players.map(p => `<option value="${p.fide_id}">${p.name || ''}</option>`).join('');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch suggestions:', err);
+      }
+    };
+
+    ['white-fide-id', 'black-fide-id'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => fetchSuggestions(val), 300);
+      });
     });
 
     // Auto-fetch names from FIDE ID
@@ -613,7 +825,8 @@ const App = (() => {
       pgn: document.getElementById('pgn-output')?.value?.trim(),
       raw_moves: state.processedMoves,
       ocr_confidence: state.ocrResult ? null : null,
-      has_errors: state.processedMoves.some(m => !m.whiteValid || !m.blackValid),
+      has_errors: state.processedMoves.some(m => (!m.whiteValid && m.white && m.white !== '?') || (!m.blackValid && m.black && m.black !== '?')),
+      scan_url: state.scan_url
     };
 
     try {

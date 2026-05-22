@@ -43,19 +43,24 @@ const PGNExporter = (() => {
     return tags + '\n' + movesText;
   }
 
+  function escapeTag(val) {
+    if (!val) return '?';
+    return String(val).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
   function buildTags(meta) {
     const tags = [];
-    tags.push(`[Event "${meta.tournament || '?'}"]`);
-    tags.push(`[Site "${meta.location || '?'}"]`);
-    tags.push(`[Date "${formatPGNDate(meta.date)}"]`);
-    tags.push(`[Round "${meta.round || '?'}"]`);
-    tags.push(`[White "${meta.whiteName || '?'}"]`);
-    tags.push(`[Black "${meta.blackName || '?'}"]`);
+    tags.push(`[Event "${escapeTag(meta.tournament)}"]`);
+    tags.push(`[Site "${escapeTag(meta.location)}"]`);
+    tags.push(`[Date "${escapeTag(formatPGNDate(meta.date))}"]`);
+    tags.push(`[Round "${escapeTag(meta.round)}"]`);
+    tags.push(`[White "${escapeTag(meta.whiteName)}"]`);
+    tags.push(`[Black "${escapeTag(meta.blackName)}"]`);
     tags.push(`[Result "${meta.result || '*'}"]`);
 
-    if (meta.whiteFideId) tags.push(`[WhiteFideId "${meta.whiteFideId}"]`);
-    if (meta.blackFideId) tags.push(`[BlackFideId "${meta.blackFideId}"]`);
-    if (meta.board) tags.push(`[Board "${meta.board}"]`);
+    if (meta.whiteFideId) tags.push(`[WhiteFideId "${escapeTag(meta.whiteFideId)}"]`);
+    if (meta.blackFideId) tags.push(`[BlackFideId "${escapeTag(meta.blackFideId)}"]`);
+    if (meta.board) tags.push(`[Board "${escapeTag(meta.board)}"]`);
 
     return tags.join('\n');
   }
@@ -113,5 +118,35 @@ const PGNExporter = (() => {
     URL.revokeObjectURL(url);
   }
 
-  return { buildPGN, getLichessUrl, downloadPGN };
+  /**
+   * Import PGN directly to Lichess via API
+   */
+  function importToLichess(pgn) {
+    return new Promise((resolve, reject) => {
+      try {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'https://lichess.org/api/import';
+        form.target = '_blank'; // Opens in a new tab
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'pgn';
+        input.value = pgn;
+
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        
+        setTimeout(() => {
+          document.body.removeChild(form);
+          resolve(); // Resolve immediately after submitting
+        }, 100);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  return { buildPGN, getLichessUrl, importToLichess, downloadPGN };
 })();

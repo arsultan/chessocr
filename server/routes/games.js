@@ -7,6 +7,46 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
+// GET /api/games/players/search?q=123
+router.get('/players/search', async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    if (!q || q.length < 1) return res.json([]);
+
+    // Query for white players matching
+    const { data: whiteData, error: whiteError } = await supabase
+      .from('games')
+      .select('white_fide_id, white_name')
+      .ilike('white_fide_id', `${q}%`)
+      .limit(50);
+      
+    if (whiteError) throw whiteError;
+
+    // Query for black players matching
+    const { data: blackData, error: blackError } = await supabase
+      .from('games')
+      .select('black_fide_id, black_name')
+      .ilike('black_fide_id', `${q}%`)
+      .limit(50);
+
+    if (blackError) throw blackError;
+
+    const playersMap = new Map();
+    
+    whiteData.forEach(g => {
+      if (g.white_fide_id) playersMap.set(g.white_fide_id, { fide_id: g.white_fide_id, name: g.white_name || '' });
+    });
+    blackData.forEach(g => {
+      if (g.black_fide_id) playersMap.set(g.black_fide_id, { fide_id: g.black_fide_id, name: g.black_name || '' });
+    });
+
+    res.json(Array.from(playersMap.values()).slice(0, 10)); // return top 10 unique
+  } catch (err) {
+    console.error('Player search error:', err);
+    res.status(500).json({ error: 'Failed to search players' });
+  }
+});
+
 // GET /api/games — list all games (paginated)
 router.get('/', async (req, res) => {
   try {
