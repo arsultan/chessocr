@@ -12,9 +12,11 @@
     "@google/generative-ai": "^0.21.0",
     "@mliebelt/pgn-parser": "^1.4.19",
     "@supabase/supabase-js": "^2.49.4",
+    "chess.js": "^1.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
+    "fastest-levenshtein": "^1.0.16",
     "multer": "^1.4.5-lts.1",
     "openai": "^6.38.0",
     "uuid": "^11.1.0"

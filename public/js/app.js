@@ -388,6 +388,13 @@ const App = (() => {
       } catch (e) { console.error('Failed to get legal moves', e); }
     }
 
+    const suggestedMove = color === 'white' ? moveData.suggestedWhite : moveData.suggestedBlack;
+    if (suggestedMove && !legalMoves.includes(suggestedMove)) {
+      legalMoves.unshift(suggestedMove);
+    } else if (suggestedMove) {
+      legalMoves = [suggestedMove, ...legalMoves.filter(m => m !== suggestedMove)];
+    }
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'move-edit-input';
@@ -402,6 +409,7 @@ const App = (() => {
     legalMoves.forEach(m => {
       const option = document.createElement('option');
       option.value = m;
+      if (m === suggestedMove) option.textContent = 'Предложение ИИ';
       datalist.appendChild(option);
     });
 

@@ -81,12 +81,22 @@ const ChessParser = (() => {
       const fenBeforeWhite = chess ? chess.fen() : null;
       const whiteResult = validateSingleMove(chess, whiteSAN, moveNum, 'white', entry.white_confidence);
       if (whiteResult.valid) validCount++;
-      else if (whiteRaw && whiteRaw !== '?') errorCount++;
+      else if (whiteRaw && whiteRaw !== '?') {
+        errorCount++;
+        if (entry.suggested_white && chess) {
+          try { chess.move(entry.suggested_white); } catch(e) {}
+        }
+      }
 
       const fenBeforeBlack = chess ? chess.fen() : null;
       const blackResult = validateSingleMove(chess, blackSAN, moveNum, 'black', entry.black_confidence);
       if (blackResult.valid) validCount++;
-      else if (blackRaw && blackRaw !== '?') errorCount++;
+      else if (blackRaw && blackRaw !== '?') {
+        errorCount++;
+        if (entry.suggested_black && chess) {
+          try { chess.move(entry.suggested_black); } catch(e) {}
+        }
+      }
 
       processedMoves.push({
         number: moveNum,
@@ -96,6 +106,7 @@ const ChessParser = (() => {
         whiteError: whiteResult.error,
         whiteConfidence: entry.white_confidence || 0.9,
         fenBeforeWhite: fenBeforeWhite,
+        suggestedWhite: entry.suggested_white || null,
 
         black: blackRaw,
         blackSAN: blackSAN,
@@ -103,6 +114,7 @@ const ChessParser = (() => {
         blackError: blackResult.error,
         blackConfidence: entry.black_confidence || 0.9,
         fenBeforeBlack: fenBeforeBlack,
+        suggestedBlack: entry.suggested_black || null,
       });
 
       // Stop if game ended (checkmate, etc.)

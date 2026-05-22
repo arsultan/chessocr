@@ -1,8 +1,10 @@
 const OpenAI = require('openai');
 const express = require('express');
+const { Chess } = require('chess.js');
+const { distance } = require('fastest-levenshtein');
 const router = express.Router();
-
-const CHESS_OCR_PROMPT = `You are an expert chess scoresheet OCR system. Analyze this chess scoresheet image carefully.
+const CHESS_OCR_PROMPT = `CONTEXT: You are an expert chess scoresheet OCR system. We are digitizing handwritten chess scoresheets (бланки шахматных партий) from real tournaments. 
+Be aware that these often feature messy children's handwriting (детский почерк), slanted text, and inconsistent character shapes. The main table strictly contains chess moves.
 
 Extract ALL information from the scoresheet and return it as valid JSON ONLY (no markdown, no explanation, no code blocks).
 
@@ -52,11 +54,13 @@ Return this exact JSON structure:
 }
 
 IMPORTANT:
-- For unreadable moves, use "?" as the move value and set confidence to 0.1
-- Include ALL moves you can see, even partial ones
-- Don't skip any move numbers - if you can't read a move, still include the entry with "?"
-- Confidence is 0.0 to 1.0 (1.0 = very clear, 0.5 = uncertain, 0.1 = unreadable)
-- For the date, convert formats like "22.09.25" → "2025-09-22"
+- Output exactly what you see on the paper. Do NOT guess or fix illegal moves. We have a chess engine that will fix errors later.
+- Pay SPECIAL ATTENTION to distinguishing between the letters "g", "d", and "a" in square coordinates (e.g., g3 vs d3). Look closely at the tail and loops.
+- For completely unreadable moves, use "?" as the move value and set confidence to 0.1.
+- Include ALL moves you can see, even partial ones.
+- Don't skip any move numbers - if you can't read a move, still include the entry with "?".
+- Confidence is 0.0 to 1.0 (1.0 = very clear, 0.5 = uncertain, 0.1 = unreadable).
+- For the date, convert formats like "22.09.25" → "2025-09-22".
 - Return ONLY raw JSON, no markdown fences`;
 
 router.post('/', async (req, res) => {
@@ -132,6 +136,74 @@ router.post('/', async (req, res) => {
 
     // Calculate overall confidence
     const moves = parsed.moves || [];
+
+    // --- MOVE CORRECTION ENGINE ---
+    const chess = new Chess();
+    let unrecoverableError = false;
+    let correctedCount = 0;
+
+    const findClosestLegalMove = (ocrMove, legalMoves) => {
+      if (!ocrMove || ocrMove === '?') return null;
+      let bestMove = null;
+      let minDistance = Infinity;
+      
+      // Basic handwriting heuristics before distance calculation
+      // E.g., N and H look similar, K and R look similar
+      let normalizedOcr = ocrMove.replace(/H/g, 'N').replace(/h/g, 'n');
+      
+      for (const moveObj of legalMoves) {
+        const san = moveObj.san;
+        const dist = distance(normalizedOcr, san);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestMove = san;
+        }
+      }
+      return bestMove;
+    };
+
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      
+      // Process White
+      if (m.white && m.white !== '?' && !unrecoverableError) {
+        try {
+          chess.move(m.white);
+        } catch (e) {
+          const legalMoves = chess.moves({ verbose: true });
+          const bestMatch = findClosestLegalMove(m.white, legalMoves);
+          if (bestMatch) {
+            m.suggested_white = bestMatch;
+            correctedCount++;
+            try { chess.move(bestMatch); } catch (err) { unrecoverableError = true; }
+          } else {
+            unrecoverableError = true;
+          }
+        }
+      }
+
+      // Process Black
+      if (m.black && m.black !== '?' && !unrecoverableError) {
+        try {
+          chess.move(m.black);
+        } catch (e) {
+          const legalMoves = chess.moves({ verbose: true });
+          const bestMatch = findClosestLegalMove(m.black, legalMoves);
+          if (bestMatch) {
+            m.suggested_black = bestMatch;
+            correctedCount++;
+            try { chess.move(bestMatch); } catch (err) { unrecoverableError = true; }
+          } else {
+            unrecoverableError = true;
+          }
+        }
+      }
+    }
+
+    parsed.has_engine_error = unrecoverableError;
+    parsed.moves = moves;
+    // --- END MOVE CORRECTION ENGINE ---
+
     const avgConfidence = moves.length > 0
       ? moves.reduce((sum, m) => {
           const wc = m.white_confidence ?? (m.white === '?' ? 0.1 : 0.9);
