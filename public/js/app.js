@@ -64,43 +64,40 @@ const App = (() => {
       zone.classList.remove('drag-over');
       const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
       if (files[0]) setPageFile(1, files[0]);
-      if (files[1]) setPageFile(2, files[1]);
     });
 
     fileInput.addEventListener('change', (e) => {
       const files = Array.from(e.target.files);
       if (files[0]) setPageFile(1, files[0]);
-      if (files[1]) setPageFile(2, files[1]);
     });
   }
 
   function setupFileInputs() {
-    // Individual page file inputs
-    ['file-page1-single', 'file-page2-single', 'file-camera'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener('change', (e) => {
-        const page = parseInt(el.dataset.page) || 1;
-        if (e.target.files[0]) setPageFile(page, e.target.files[0]);
+    const cameraInput = document.getElementById('file-camera');
+    if (cameraInput) {
+      cameraInput.addEventListener('change', (e) => {
+        if (e.target.files[0]) setPageFile(1, e.target.files[0]);
       });
-    });
+    }
   }
 
   function setPageFile(page, file) {
-    if (page === 1) state.page1File = file;
-    else state.page2File = file;
+    state.page1File = file;
+    state.page2File = null;
 
     // Show preview
-    const previewEl = document.getElementById(`page${page}-preview`);
-    const cardEl = document.getElementById(`page${page}-card`);
-    if (previewEl) {
+    const previewEl = document.getElementById('main-preview');
+    const contentEl = document.getElementById('upload-zone-content');
+    
+    if (previewEl && contentEl) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        previewEl.innerHTML = `<img src="${e.target.result}" alt="Page ${page}">`;
+        previewEl.innerHTML = `<img src="${e.target.result}" alt="Скан" style="max-height: 250px; border-radius: var(--radius);">`;
+        previewEl.classList.remove('hidden');
+        contentEl.classList.add('hidden');
       };
       reader.readAsDataURL(file);
     }
-    if (cardEl) cardEl.classList.add('has-file');
 
     updateProcessButton();
   }
@@ -108,13 +105,12 @@ const App = (() => {
   function updateProcessButton() {
     const btn = document.getElementById('btn-process');
     const note = document.getElementById('process-note');
-    if (state.page1File || state.page2File) {
+    if (state.page1File) {
       btn.disabled = false;
-      const count = (state.page1File ? 1 : 0) + (state.page2File ? 1 : 0);
-      if (note) note.textContent = `Загружено страниц: ${count}`;
+      if (note) note.textContent = `Готов к распознаванию`;
     } else {
       btn.disabled = true;
-      if (note) note.textContent = 'Добавьте хотя бы одну страницу';
+      if (note) note.textContent = 'Добавьте скан бланка';
     }
   }
 

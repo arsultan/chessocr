@@ -46,53 +46,20 @@
       </div>
 
       <div class="upload-zone" id="upload-zone-main">
-        <input type="file" id="file-page1" accept="image/*" class="file-input" multiple>
-        <div class="upload-zone-content">
+        <input type="file" id="file-page1" accept="image/*" class="file-input">
+        <div class="upload-zone-content" id="upload-zone-content">
           <div class="upload-icon">♟</div>
           <p class="upload-title">Перетащите фото сюда или нажмите для выбора</p>
-          <p class="upload-sub">JPEG, PNG, WebP · до 20 МБ · 1 или 2 страницы</p>
+          <p class="upload-sub" id="upload-filename">JPEG, PNG, WebP · до 20 МБ</p>
         </div>
+        <div id="main-preview" class="hidden" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 2; pointer-events: none;"></div>
         <div class="upload-corner upload-corner--tl"></div>
         <div class="upload-corner upload-corner--tr"></div>
         <div class="upload-corner upload-corner--bl"></div>
         <div class="upload-corner upload-corner--br"></div>
       </div>
 
-      <div class="pages-grid">
-        <div class="page-card" id="page1-card">
-          <div class="page-label">
-            <span class="badge badge--required">Страница 1</span>
-            <span class="page-label-hint">Ходы 1–30</span>
-          </div>
-          <div class="page-preview" id="page1-preview">
-            <div class="page-empty">
-              <span class="page-empty-icon">📄</span>
-              <span>Не выбрана</span>
-            </div>
-          </div>
-          <button class="btn btn--secondary btn--sm" onclick="document.getElementById('file-page1-single').click()">
-            Выбрать файл
-          </button>
-          <input type="file" id="file-page1-single" accept="image/*" class="file-input" data-page="1">
-        </div>
 
-        <div class="page-card" id="page2-card">
-          <div class="page-label">
-            <span class="badge">Страница 2</span>
-            <span class="page-label-hint">Ходы 31–60 (если есть)</span>
-          </div>
-          <div class="page-preview" id="page2-preview">
-            <div class="page-empty">
-              <span class="page-empty-icon">📄</span>
-              <span>Необязательная</span>
-            </div>
-          </div>
-          <button class="btn btn--ghost btn--sm" onclick="document.getElementById('file-page2-single').click()">
-            Выбрать файл
-          </button>
-          <input type="file" id="file-page2-single" accept="image/*" class="file-input" data-page="2">
-        </div>
-      </div>
 
       <!-- Camera capture for mobile -->
       <div class="camera-row">
@@ -107,7 +74,7 @@
           <span class="btn-text">Распознать бланк</span>
           <span class="btn-spinner hidden">⟳</span>
         </button>
-        <p class="process-note" id="process-note">Добавьте хотя бы одну страницу</p>
+        <p class="process-note" id="process-note">Добавьте скан бланка</p>
       </div>
     </div>
   </main>
